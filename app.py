@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 # ------------------------------
 # Title
 # ------------------------------
-st.title("NeuroMirror Data Exploration")
+st.title("NeuroMirror Advanced Data Exploration")
 
 # ------------------------------
 # File Upload
@@ -63,144 +65,111 @@ if uploaded_file:
     # ------------------------------
     # Sidebar Navigation
     # ------------------------------
-    st.sidebar.title("Choose a Visualization")
+    st.sidebar.title("Choose an Exploratory Visualization")
     options = [
-        "Scatter Plot",
-        "Animated Scatter",
-        "Box Plot",
-        "Treemap",
-        "Radar Chart",
-        "Sunburst Chart",
-        "Heatmap"
+        "Animated Radar Chart",
+        "Cluster Map (PCA)",
+        "Animated Violin Plots",
+        "Multi-level Sunburst",
+        "Interactive Correlation Heatmap"
     ]
-    choice = st.sidebar.radio("Go to", options)
+    choice = st.sidebar.radio("Select Visualization", options)
 
     # ------------------------------
-    # Session state for filtered data
+    # Filtered data for interactivity
     # ------------------------------
     if "filtered_df" not in st.session_state:
         st.session_state.filtered_df = df.copy()
-
     filtered_df = st.session_state.filtered_df
 
     # ------------------------------
-    # Function to update filtered dataframe
+    # Animated Radar Chart
     # ------------------------------
-    def update_filtered(selected_points, x_col, y_col):
-        if selected_points is not None and len(selected_points["points"]) > 0:
-            indices = [p["pointIndex"] for p in selected_points["points"]]
-            st.session_state.filtered_df = filtered_df.iloc[indices]
-        else:
-            st.session_state.filtered_df = df.copy()
-
-    # ------------------------------
-    # Scatter Plot
-    # ------------------------------
-    if choice == "Scatter Plot":
-        st.subheader("Scatter Plot: Alone Time vs Friends Circle")
-        fig = px.scatter(
-            filtered_df,
-            x="Time_spent_Alone",
-            y="Friends_circle_size",
-            color="Personality",
-            size="Post_frequency",
-            hover_data=["Stage_fear", "Social_event_attendance"]
-        )
-        selected_points = st.plotly_chart(fig, use_container_width=True)
-
-    # ------------------------------
-    # Animated Scatter
-    # ------------------------------
-    elif choice == "Animated Scatter":
-        st.subheader("Animated Scatter: Alone Time vs Friends Circle over Stage Fear")
-        df_anim = filtered_df.dropna(subset=["Stage_fear", "Time_spent_Alone", "Friends_circle_size"])
-        fig = px.scatter(
-            df_anim,
-            x="Time_spent_Alone",
-            y="Friends_circle_size",
-            color="Personality",
-            size="Post_frequency",
-            animation_frame="Stage_fear",
-            hover_data=["Social_event_attendance", "Going_outside"]
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    # ------------------------------
-    # Box Plot
-    # ------------------------------
-    elif choice == "Box Plot":
-        st.subheader("Box Plot: Stage Fear by Personality")
-        df_box = filtered_df.dropna(subset=["Stage_fear", "Personality"])
-        fig = px.box(
-            df_box,
-            x="Personality",
-            y="Stage_fear",
-            points="all",
-            color="Personality"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    # ------------------------------
-    # Treemap
-    # ------------------------------
-    elif choice == "Treemap":
-        st.subheader("Treemap: Social Events and Personality")
-        fig = px.treemap(
-            filtered_df,
-            path=["Personality"],
-            values="Social_event_attendance",
-            color="Personality"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    # ------------------------------
-    # Radar Chart
-    # ------------------------------
-    elif choice == "Radar Chart":
-        st.subheader("Radar Chart: Mean Scores by Personality")
+    if choice == "Animated Radar Chart":
+        st.subheader("Animated Radar Chart: Mean Traits per Personality")
         radar_data = filtered_df.groupby("Personality")[numeric_cols].mean().reset_index()
-        radar_melted = radar_data.melt(id_vars="Personality", var_name="Attribute", value_name="Value")
+        radar_melted = radar_data.melt(id_vars="Personality", var_name="Trait", value_name="Value")
         fig = px.line_polar(
             radar_melted,
             r="Value",
-            theta="Attribute",
+            theta="Trait",
             color="Personality",
-            line_close=True
+            line_close=True,
+            animation_frame="Personality",
+            markers=True
         )
         st.plotly_chart(fig, use_container_width=True)
 
     # ------------------------------
-    # Sunburst Chart
+    # Cluster Map (PCA)
     # ------------------------------
-    elif choice == "Sunburst Chart":
-        st.subheader("Sunburst: Personality Breakdown by Going Outside")
+    elif choice == "Cluster Map (PCA)":
+        st.subheader("Cluster Map of Persons (PCA Projection)")
+        pca_data = filtered_df.dropna(subset=numeric_cols)
+        if len(pca_data) >= 2:
+            scaler = StandardScaler()
+            scaled = scaler.fit_transform(pca_data[numeric_cols])
+            pca = PCA(n_components=2)
+            components = pca.fit_transform(scaled)
+            pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
+            pca_df["Personality"] = pca_data["Personality"].values
+            fig = px.scatter(
+                pca_df,
+                x="PC1",
+                y="PC2",
+                color="Personality",
+                hover_data=pca_data[numeric_cols]
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Not enough data for PCA clustering.")
+
+    # ------------------------------
+    # Animated Violin Plots
+    # ------------------------------
+    elif choice == "Animated Violin Plots":
+        st.subheader("Animated Violin Plots: Trait Distributions by Personality")
+        df_violin = filtered_df.melt(id_vars="Personality", value_vars=numeric_cols,
+                                     var_name="Trait", value_name="Value")
+        fig = px.violin(
+            df_violin,
+            x="Trait",
+            y="Value",
+            color="Personality",
+            box=True,
+            points="all",
+            animation_frame="Personality"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ------------------------------
+    # Multi-level Sunburst
+    # ------------------------------
+    elif choice == "Multi-level Sunburst":
+        st.subheader("Multi-level Sunburst: Personality → Going_outside → Stage_fear")
+        df_sun = filtered_df.copy()
+        df_sun["Stage_fear_bin"] = pd.cut(df_sun["Stage_fear"], bins=3, labels=["Low", "Medium", "High"])
         fig = px.sunburst(
-            filtered_df,
-            path=["Personality", "Going_outside"],
+            df_sun,
+            path=["Personality", "Going_outside", "Stage_fear_bin"],
             values="Friends_circle_size",
             color="Personality"
         )
         st.plotly_chart(fig, use_container_width=True)
 
     # ------------------------------
-    # Heatmap
+    # Interactive Correlation Heatmap
     # ------------------------------
-    elif choice == "Heatmap":
+    elif choice == "Interactive Correlation Heatmap":
         st.subheader("Correlation Heatmap")
         corr = filtered_df[numeric_cols].corr()
         fig = px.imshow(
             corr,
             text_auto=True,
-            color_continuous_scale="RdBu_r"
+            color_continuous_scale="RdBu_r",
+            aspect="auto"
         )
         st.plotly_chart(fig, use_container_width=True)
-
-    # ------------------------------
-    # Show filtered data for clicks
-    # ------------------------------
-    st.markdown("---")
-    st.subheader("Filtered Data Based on Interactions")
-    st.dataframe(filtered_df)
 
 else:
     st.info("👆 Please upload a CSV file to begin.")
