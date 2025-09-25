@@ -12,7 +12,8 @@ st.title("Neuro Mirror - Personality Analysis")
 @st.cache_data
 def load_data():
     # Replace with your dataset file name
-    df = pd.read_csv("personality_behavior_data.csv")  
+    df = pd.read_csv("personality_behavior_data.csv") 
+    df = df.apply(pd.to_numeric, errors='ignore')
     return df
 
 df = load_data()
