@@ -161,4 +161,4 @@ if uploaded_file:
             st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("👆 Please upload a CSV file to begin.")
+    st.info(" Please upload a CSV file to begin.")
